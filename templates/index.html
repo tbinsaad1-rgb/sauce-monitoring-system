@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>ديب فرايز — لوحة مراقبة الجودة (حية)</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background:#F7F5F0; margin:0; padding:20px; color:#1a1a1a; }
+  .wrap { max-width: 900px; margin:0 auto; }
+  .header { background:#1a1a1a; border-radius:12px; padding:14px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; }
+  .header p { margin:0; color:#fff; font-size:16px; font-weight:600; }
+  .badge { background:#F0A63D; color:#1a1a1a; font-size:11px; padding:4px 10px; border-radius:6px; font-weight:700; }
+  .kpis { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:20px; }
+  .kpi { background:#FCEFDD; border-radius:10px; padding:14px; }
+  .kpi p.l { font-size:12px; color:#8A5A17; margin:0 0 6px; }
+  .kpi p.v { font-size:24px; font-weight:700; margin:0; }
+  .card { background:#fff; border:1px solid #eee; border-radius:12px; padding:16px 18px; margin-bottom:16px; }
+  h3 { font-size:15px; font-weight:700; margin:0 0 12px; }
+  .bar-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; }
+  .bar-label { width:60px; }
+  .bar-track { flex:1; background:#eee; border-radius:5px; height:16px; overflow:hidden; }
+  .bar-fill { height:100%; background:#F0A63D; border-radius:5px; }
+  .alert-row { background:#FCEFEA; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px; }
+  .empty { color:#999; font-size:13px; text-align:center; padding:16px; }
+  .test-form { display:flex; flex-wrap:wrap; gap:8px; }
+  .test-form input, .test-form button { padding:8px 10px; border-radius:6px; border:1px solid #ddd; font-size:13px; }
+  .test-form button { background:#1a1a1a; color:#fff; cursor:pointer; border:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <p>ديب فرايز — لوحة مراقبة الجودة</p>
+    <span class="badge">حية - متصلة بقاعدة بيانات فعلية</span>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><p class="l">إجمالي الطلبات المُتحقَّق منها</p><p class="v" id="kpiTotal">-</p></div>
+    <div class="kpi"><p class="l">نسبة الدقة</p><p class="v" id="kpiAccuracy">-</p></div>
+    <div class="kpi"><p class="l">تنبيهات مفتوحة</p><p class="v" id="kpiAlerts">-</p></div>
+  </div>
+
+  <div class="card">
+    <h3>دقة كل موظف</h3>
+    <div id="empBars"><div class="empty">لا توجد بيانات بعد — أضف تحققاً تجريبياً بالأسفل</div></div>
+  </div>
+
+  <div class="card">
+    <h3>سجل التنبيهات</h3>
+    <div id="alertsFeed"><div class="empty">لا توجد تنبيهات بعد</div></div>
+  </div>
+
+  <div class="card">
+    <h3>إضافة تحقق تجريبي (محاكاة استدعاء من كود الكشف الحقيقي)</h3>
+    <div class="test-form">
+      <input type="text" id="empName" placeholder="اسم الموظف" value="أحمد">
+      <input type="text" id="reqSauces" placeholder="المطلوب (مفصول بفاصلة)" value="كاتشب,ثوم">
+      <input type="text" id="detSauces" placeholder="المكتشف (مفصول بفاصلة)" value="ثوم">
+      <button onclick="submitVerification()">إرسال</button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadDashboard() {
+  const res = await fetch('/api/dashboard');
+  const data = await res.json();
+
+  document.getElementById('kpiTotal').textContent = data.total_orders;
+  document.getElementById('kpiAccuracy').textContent = data.accuracy !== null ? data.accuracy + '%' : '—';
+  document.getElementById('kpiAlerts').textContent = data.open_alerts;
+
+  const empBox = document.getElementById('empBars');
+  if (data.employee_accuracy.length === 0) {
+    empBox.innerHTML = '<div class="empty">لا توجد بيانات بعد</div>';
+  } else {
+    empBox.innerHTML = data.employee_accuracy.map(e => `
+      <div class="bar-row">
+        <div class="bar-label">${e.name}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${e.accuracy}%"></div></div>
+        <div>${e.accuracy}%</div>
+      </div>`).join('');
+  }
+
+  const feed = document.getElementById('alertsFeed');
+  if (data.alerts.length === 0) {
+    feed.innerHTML = '<div class="empty">لا توجد تنبيهات بعد</div>';
+  } else {
+    feed.innerHTML = data.alerts.map(a => `
+      <div class="alert-row"><b>طلب ${a.order_number} — ${a.employee}</b> — لم يُضِف: ${a.missing.join('، ')}</div>
+    `).join('');
+  }
+}
+
+async function submitVerification() {
+  const employee = document.getElementById('empName').value;
+  const required = document.getElementById('reqSauces').value.split(',').map(s => s.trim()).filter(Boolean);
+  const detected = document.getElementById('detSauces').value.split(',').map(s => s.trim()).filter(Boolean);
+
+  await fetch('/api/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ employee, required, detected }),
+  });
+  loadDashboard();
+}
+
+loadDashboard();
+setInterval(loadDashboard, 5000);
+</script>
+</body>
+</html>
