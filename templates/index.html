@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>ديب فرايز — لوحة مراقبة الجودة (حية)</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background:#F7F5F0; margin:0; padding:20px; color:#1a1a1a; }
+  .wrap { max-width: 900px; margin:0 auto; }
+  .header { background:#1a1a1a; border-radius:12px; padding:14px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; }
+  .header p { margin:0; color:#fff; font-size:16px; font-weight:600; }
+  .badge { background:#F0A63D; color:#1a1a1a; font-size:11px; padding:4px 10px; border-radius:6px; font-weight:700; }
+  .kpis { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:20px; }
+  .kpi { background:#FCEFDD; border-radius:10px; padding:14px; }
+  .kpi p.l { font-size:12px; color:#8A5A17; margin:0 0 6px; }
+  .kpi p.v { font-size:24px; font-weight:700; margin:0; }
+  .card { background:#fff; border:1px solid #eee; border-radius:12px; padding:16px 18px; margin-bottom:16px; }
+  h3 { font-size:15px; font-weight:700; margin:0 0 12px; }
+  .bar-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; }
+  .bar-label { width:60px; }
+  .bar-track { flex:1; background:#eee; border-radius:5px; height:16px; overflow:hidden; }
+  .bar-fill { height:100%; background:#F0A63D; border-radius:5px; }
+  .alert-row { background:#FCEFEA; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px; }
+  .empty { color:#999; font-size:13px; text-align:center; padding:16px; }
+  .test-form { display:flex; flex-wrap:wrap; gap:8px; }
+  .test-form input, .test-form button { padding:8px 10px; border-radius:6px; border:1px solid #ddd; font-size:13px; }
+  .test-form button { background:#1a1a1a; color:#fff; cursor:pointer; border:none; }
+
+  .progress-wrap { width:100%; background:#eee; border-radius:8px; height:22px; overflow:hidden; margin-top:10px; display:none; }
+  .progress-bar { height:100%; width:0%; background:#F0A63D; transition:width 0.2s ease; text-align:center;
+                   color:#1a1a1a; font-size:12px; line-height:22px; white-space:nowrap; }
+  .progress-bar.indeterminate {
+    width:35% !important;
+    background: linear-gradient(90deg, #F0A63D, #FFD699, #F0A63D);
+    animation: slide-rtl 1.1s infinite ease-in-out;
+  }
+  @keyframes slide-rtl {
+    0%   { margin-right: 0%; }
+    50%  { margin-right: 65%; }
+    100% { margin-right: 0%; }
+  }
+
+  .sauce-chip { display:flex; align-items:center; gap:6px; background:#F5F4F0; border-radius:8px; padding:6px 10px; cursor:pointer; font-size:13px; user-select:none; }
+  .sauce-chip input { margin:0; }
+  .sauce-swatch { width:14px; height:14px; border-radius:50%; border:1px solid rgba(0,0,0,0.15); display:inline-block; }
+  .sauce-chip.unreliable { opacity:0.85; }
+  .reliability-tag { font-size:10px; color:#993C1D; background:#FAECE7; padding:1px 6px; border-radius:5px; margin-right:4px; }
+
+  .dish-card { border:1px solid #eee; border-radius:10px; padding:10px 14px; margin-bottom:8px; background:#FAFAF8; }
+  .dish-card b { font-size:13.5px; }
+  .dish-sauce-tag { display:inline-flex; align-items:center; gap:4px; background:#fff; border:1px solid #ddd; border-radius:6px; padding:2px 8px; font-size:12px; margin-left:5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <p>ديب فرايز — لوحة مراقبة الجودة</p>
+    <span class="badge">حية - متصلة بقاعدة بيانات فعلية</span>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><p class="l">إجمالي الطلبات المُتحقَّق منها</p><p class="v" id="kpiTotal">-</p></div>
+    <div class="kpi"><p class="l">نسبة الدقة</p><p class="v" id="kpiAccuracy">-</p></div>
+    <div class="kpi"><p class="l">تنبيهات مفتوحة</p><p class="v" id="kpiAlerts">-</p></div>
+  </div>
+
+  <div class="card">
+    <h3>دقة كل موظف</h3>
+    <div id="empBars"><div class="empty">لا توجد بيانات بعد — أضف تحققاً تجريبياً بالأسفل</div></div>
+  </div>
+
+  <div class="card">
+    <h3>سجل التنبيهات</h3>
+    <div id="alertsFeed"><div class="empty">لا توجد تنبيهات بعد</div></div>
+  </div>
+
+  <div class="card">
+    <h3>تحليل فيديو مباشر (يُحلَّل ويُحفظ لاستخدامه لاحقاً بتدريب الموديل)</h3>
+    <p style="font-size:12.5px; color:#8A5A17; background:#FCEFDD; padding:8px 12px; border-radius:8px; margin:0 0 12px;">
+      💡 <b>اسم الموظف</b>: اللي يظهر بالفيديو يحضّر الطلب — <b>الصوصات المطلوبة</b>: اختر الصوصات اللي طلبها العميل فعلياً — <b>عدد الأطباق بالمقطع</b>: لو فيه أكثر من صحن بنفس الفيديو (دفعة)، يرقّمهم النظام تلقائياً من اليمين لليسار.
+    </p>
+
+    <div style="margin-bottom:10px;">
+      <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">الصوصات المطلوبة:</label>
+      <div id="sauceCheckboxes" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+    </div>
+
+    <div class="test-form">
+      <input type="text" id="vidEmployee" placeholder="اسم الموظف" value="أحمد">
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+        عدد الأطباق:
+        <input type="number" id="vidNumDishes" value="1" min="1" max="8" style="width:55px;">
+      </label>
+      <input type="file" id="vidFile" accept="video/*">
+      <button onclick="analyzeVideo()">تحليل الفيديو</button>
+    </div>
+    <div class="progress-wrap" id="vidProgressWrap">
+      <div class="progress-bar" id="vidProgressBar">0%</div>
+    </div>
+    <div id="vidStatus" style="margin-top:10px; font-size:13px; color:#666;"></div>
+    <div id="dishesResult" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="card">
+    <h3>دقة النظام الفعلية (بناءً على تصحيحاتك) <a href="/api/corrections/export" style="font-size:12px; color:#185FA5; margin-right:10px;">⬇ تحميل بيانات التدريب (CSV)</a></h3>
+    <div id="correctionsStats"><div class="empty">لا توجد تصحيحات مسجَّلة بعد</div></div>
+  </div>
+
+  <div class="card">
+    <h3>سجل الفيديوهات المحفوظة (لتدريب الموديل لاحقاً)</h3>
+    <p style="font-size:12px; color:#999; margin:0 0 10px;">⚠️ تخزين مؤقت على السيرفر المجاني — حمّل الفيديوهات دورياً قبل أي إعادة نشر</p>
+    <div id="videosFeed"><div class="empty">لا توجد فيديوهات محفوظة بعد</div></div>
+  </div>
+
+  <div class="card">
+    <h3>إضافة تحقق تجريبي (محاكاة استدعاء من كود الكشف الحقيقي)</h3>
+    <div class="test-form">
+      <input type="text" id="empName" placeholder="اسم الموظف" value="أحمد">
+      <input type="text" id="reqSauces" placeholder="المطلوب (مفصول بفاصلة)" value="كاتشب,ثوم">
+      <input type="text" id="detSauces" placeholder="المكتشف (مفصول بفاصلة)" value="ثوم">
+      <button onclick="submitVerification()">إرسال</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let SAUCE_CATALOG = {};
+
+async function loadCatalog() {
+  const res = await fetch('/api/catalog');
+  SAUCE_CATALOG = await res.json();
+
+  const box = document.getElementById('sauceCheckboxes');
+  box.innerHTML = Object.entries(SAUCE_CATALOG).map(([name, info]) => `
+    <label class="sauce-chip ${info.reliable ? '' : 'unreliable'}">
+      <input type="checkbox" class="sauce-check" value="${name}" ${info.reliable ? 'checked' : ''}>
+      <span class="sauce-swatch" style="background:${info.color_hex};"></span>
+      ${name}
+      ${info.reliable ? '' : '<span class="reliability-tag">تجريبي</span>'}
+    </label>
+  `).join('');
+}
+
+function getCheckedSauces() {
+  return Array.from(document.querySelectorAll('.sauce-check:checked')).map(cb => cb.value);
+}
+
+function sauceTag(name) {
+  const info = SAUCE_CATALOG[name] || { color_hex: '#999' };
+  return `<span class="dish-sauce-tag"><span class="sauce-swatch" style="background:${info.color_hex};"></span>${name}</span>`;
+}
+
+async function loadDashboard() {
+  const res = await fetch('/api/dashboard');
+  const data = await res.json();
+
+  document.getElementById('kpiTotal').textContent = data.total_orders;
+  document.getElementById('kpiAccuracy').textContent = data.accuracy !== null ? data.accuracy + '%' : '—';
+  document.getElementById('kpiAlerts').textContent = data.open_alerts;
+
+  const empBox = document.getElementById('empBars');
+  if (data.employee_accuracy.length === 0) {
+    empBox.innerHTML = '<div class="empty">لا توجد بيانات بعد</div>';
+  } else {
+    empBox.innerHTML = data.employee_accuracy.map(e => `
+      <div class="bar-row">
+        <div class="bar-label">${e.name}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${e.accuracy}%"></div></div>
+        <div>${e.accuracy}%</div>
+      </div>`).join('');
+  }
+
+  const feed = document.getElementById('alertsFeed');
+  if (data.alerts.length === 0) {
+    feed.innerHTML = '<div class="empty">لا توجد تنبيهات بعد</div>';
+  } else {
+    feed.innerHTML = data.alerts.map(a => `
+      <div class="alert-row"><b>طلب ${a.order_number} — ${a.employee}</b> — لم يُضِف: ${a.missing.join('، ')}</div>
+    `).join('');
+  }
+}
+
+async function submitVerification() {
+  const employee = document.getElementById('empName').value;
+  const required = document.getElementById('reqSauces').value.split(',').map(s => s.trim()).filter(Boolean);
+  const detected = document.getElementById('detSauces').value.split(',').map(s => s.trim()).filter(Boolean);
+
+  await fetch('/api/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ employee, required, detected }),
+  });
+  loadDashboard();
+}
+
+function sauceCheckboxesForCorrection(uid, preChecked) {
+  preChecked = preChecked || [];
+  return Object.entries(SAUCE_CATALOG).map(([name, info]) => `
+    <label class="sauce-chip" style="font-size:12px;">
+      <input type="checkbox" class="correction-check-${uid}" value="${name}" ${preChecked.includes(name) ? 'checked' : ''}>
+      <span class="sauce-swatch" style="background:${info.color_hex};"></span>${name}
+    </label>
+  `).join('');
+}
+
+function renderDishSummary(videoId, dishResults) {
+  if (!dishResults || dishResults.length === 0) return '<span class="empty">لا توجد تفاصيل</span>';
+  return dishResults.map(d => {
+    const uid = `${videoId}_${d.order_position}`;
+    return `
+    <div class="dish-card">
+      <b>طبق رقم ${d.order_position}</b>
+      ${d.result ? (d.result === 'match' ? ' ✅' : ' ❌') : ''}
+      <div style="margin-top:6px;"><span style="font-size:11.5px; color:#888;">النظام اكتشف:</span> ${(d.detected_all || []).map(sauceTag).join('') || '<span class="empty">لا شيء</span>'}</div>
+
+      <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #ddd;">
+        <span style="font-size:11.5px; color:#888; display:block; margin-bottom:4px;">✏️ صحّح النتيجة (وش الصوصات الحقيقية اللي كانت موجودة فعلاً؟):</span>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
+          ${sauceCheckboxesForCorrection(uid, d.detected_all)}
+        </div>
+        <button onclick="submitCorrection(${videoId}, ${d.order_position}, '${uid}')" style="background:#534AB7; color:#fff; border:none; padding:5px 12px; border-radius:6px; font-size:12px; cursor:pointer;">تسجيل التصحيح</button>
+        <span id="correctionResult_${uid}" style="font-size:12px; margin-right:8px;"></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function submitCorrection(videoId, orderPosition, uid) {
+  const checked = Array.from(document.querySelectorAll(`.correction-check-${uid}:checked`)).map(cb => cb.value);
+  const resultSpan = document.getElementById(`correctionResult_${uid}`);
+  resultSpan.textContent = 'جاري الحفظ...';
+
+  try {
+    const res = await fetch('/api/correct_dish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video_id: videoId, order_position: orderPosition, ground_truth: checked }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      resultSpan.textContent = 'خطأ: ' + data.error;
+      return;
+    }
+    if (data.was_fully_correct) {
+      resultSpan.innerHTML = '✅ النظام كان صحيحاً تماماً';
+    } else {
+      let msg = '';
+      if (data.missed_by_system.length) msg += `فاتت النظام: ${data.missed_by_system.join('، ')}. `;
+      if (data.wrongly_detected.length) msg += `اكتشف بالخطأ: ${data.wrongly_detected.join('، ')}.`;
+      resultSpan.innerHTML = '📝 تم التسجيل — ' + msg;
+    }
+    loadCorrectionsStats();
+  } catch (e) {
+    resultSpan.textContent = 'خطأ بالاتصال';
+  }
+}
+
+async function loadCorrectionsStats() {
+  const res = await fetch('/api/corrections');
+  const data = await res.json();
+  const box = document.getElementById('correctionsStats');
+
+  if (!data.total) {
+    box.innerHTML = '<div class="empty">لا توجد تصحيحات مسجَّلة بعد</div>';
+    return;
+  }
+
+  box.innerHTML = `
+    <div class="kpis" style="margin-bottom:12px;">
+      <div class="kpi"><p class="l">عدد التصحيحات المسجَّلة</p><p class="v">${data.total}</p></div>
+      <div class="kpi"><p class="l">دقة النظام الفعلية (مقارنة بتصحيحاتك)</p><p class="v">${data.system_accuracy_vs_ground_truth}%</p></div>
+    </div>
+    ${data.corrections.slice(0, 5).map(c => `
+      <div class="alert-row" style="background:#F5F4F0;">
+        ${c.original_filename} — طبق ${c.order_position} — ${c.was_fully_correct ? '✅ صحيح' : '❌ فيه فرق'}
+      </div>`).join('')}
+  `;
+}
+
+async function loadVideos() {
+  const res = await fetch('/api/videos');
+  const data = await res.json();
+  const box = document.getElementById('videosFeed');
+
+  if (!data.videos || data.videos.length === 0) {
+    box.innerHTML = '<div class="empty">لا توجد فيديوهات محفوظة بعد</div>';
+    return;
+  }
+
+  box.innerHTML = data.videos.map(v => `
+    <div class="alert-row" style="background:#F5F4F0;">
+      <b>${v.original_filename}</b> (${v.file_size_mb} MB) — ${v.employee} — عدد الأطباق: ${v.num_dishes}
+      <a href="/api/videos/${v.video_id}/download" style="margin-right:8px; color:#185FA5;">تحميل</a>
+      <div style="margin-top:8px;">${renderDishSummary(v.video_id, v.dish_results)}</div>
+    </div>`).join('');
+}
+
+function analyzeVideo() {
+  const fileInput = document.getElementById('vidFile');
+  const employee = document.getElementById('vidEmployee').value;
+  const required = getCheckedSauces().join(',');
+  const numDishes = document.getElementById('vidNumDishes').value;
+  const statusBox = document.getElementById('vidStatus');
+  const progressWrap = document.getElementById('vidProgressWrap');
+  const progressBar = document.getElementById('vidProgressBar');
+  const dishesResultBox = document.getElementById('dishesResult');
+
+  if (!fileInput.files.length) {
+    statusBox.textContent = 'اختر ملف فيديو أولاً';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('video', fileInput.files[0]);
+  formData.append('employee', employee);
+  formData.append('required', required);
+  formData.append('num_dishes', numDishes);
+
+  statusBox.textContent = '';
+  dishesResultBox.innerHTML = '';
+  progressWrap.style.display = 'block';
+  progressBar.classList.remove('indeterminate');
+  progressBar.style.width = '0%';
+  progressBar.textContent = '0%';
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/analyze_video');
+
+  xhr.upload.onprogress = function (e) {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      progressBar.style.width = pct + '%';
+      progressBar.textContent = 'جاري الرفع... ' + pct + '%';
+    }
+  };
+
+  xhr.upload.onload = function () {
+    progressBar.classList.add('indeterminate');
+    progressBar.textContent = 'جاري التحليل على السيرفر...';
+    statusBox.textContent = 'اكتمل الرفع، جاري التحليل... قد يأخذ دقيقة حسب طول الفيديو وعدد الأطباق';
+  };
+
+  xhr.onload = function () {
+    progressWrap.style.display = 'none';
+    progressBar.classList.remove('indeterminate');
+
+    let data;
+    try {
+      data = JSON.parse(xhr.responseText);
+    } catch (err) {
+      statusBox.textContent = 'خطأ غير متوقع بالرد من السيرفر';
+      return;
+    }
+
+    if (xhr.status !== 200 || data.error) {
+      statusBox.textContent = 'خطأ: ' + (data.error || ('كود ' + xhr.status));
+      return;
+    }
+
+    statusBox.innerHTML = `تم التحليل والحفظ (${data.frames_analyzed} إطار، ${data.num_dishes} طبق) — التفاصيل بالأسفل:`;
+    dishesResultBox.innerHTML = renderDishSummary(data.video_id, data.dishes);
+    loadDashboard();
+    loadVideos();
+  };
+
+  xhr.onerror = function () {
+    progressWrap.style.display = 'none';
+    statusBox.textContent = 'خطأ بالاتصال بالسيرفر';
+  };
+
+  xhr.send(formData);
+}
+
+loadCatalog();
+loadDashboard();
+loadVideos();
+loadCorrectionsStats();
+setInterval(loadDashboard, 5000);
+</script>
+</body>
+</html>
